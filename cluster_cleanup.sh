@@ -4,6 +4,8 @@ set -xe
 # shellcheck disable=SC1091
 source lib/common.sh
 
+sudo ovs-vsctl show | grep "br-test" && sudo ovs-vsctl del-br br-test
+
 # Delete cluster
 if [ "${EPHEMERAL_CLUSTER}" == "kind" ]; then
   sudo su -l -c "kind delete cluster  || true" "${USER}"

@@ -54,6 +54,97 @@ function clone_repos() {
   clone_repo "${BMOREPO}" "${BMOBRANCH}" "${BMOPATH}"
   clone_repo "${CAPM3REPO}" "${CAPM3BRANCH}" "${CAPM3PATH}"
   clone_repo "${IPAMREPO}" "${IPAMBRANCH}" "${IPAMPATH}"
+  clone_repo "${NWOREPO}" "${NWOBRANCH}" "${NWOPATH}"
+}
+
+# ------------------------------------
+# NWO
+# ------------------------------------
+
+#
+# Create the NWO deployment
+#
+function launch_network_operator() {
+  pushd "${NWOPATH}"
+  # Apply CRDs
+  make install
+
+  # Create network-operator deployment
+  sed -i 's/controller:latest/hellcatlk\/network-operator:dev/g' config/manager/manager.yaml
+  make deploy
+  popd
+}
+
+#
+# Apply switch/switchport/switchportconfiguration CRs
+#
+function apply_network_resource() {
+  switch="
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-example
+type: Opaque
+data:
+  username: $(echo -n $OVS_USERNAME | base64 -)
+  password: $(echo -n $OVS_PASSWORD | base64 -)
+
+---
+apiVersion: metal3.io/v1alpha1
+kind: AnsibleSwitch
+metadata:
+  name: ansible-switch-example
+spec:
+  os: openvswitch
+  host: $OVS_HOST
+  bridge: br-test
+  secret:
+    name: secret-example
+    namespace: default
+
+---
+apiVersion: metal3.io/v1alpha1
+kind: Switch
+metadata:
+  name: switch-example
+spec:
+  provider:
+    kind: AnsibleSwitch
+    name: ansible-switch-example
+  ports:"
+
+  # Create switch
+  sudo ovs-vsctl add-br br-test
+  while read -r name address user password mac; do
+    # Create ovs port
+    sudo ovs-vsctl add-port br-test "$name"
+    # Generate spec ports field
+    switch=$switch"
+    \"switchport-$name\":
+      name: $name"
+  done < <(list_nodes)
+  echo "$switch" | kubectl apply -f -
+
+  # Create pxe switch port configuration
+  echo "
+apiVersion: metal3.io/v1alpha1
+kind: SwitchPortConfiguration
+metadata:
+  name: switchportconfiguration-provisioning
+spec:
+  untaggedVLAN: 10
+" | kubectl apply -f -
+
+  # Create switch port configuration
+  echo "
+apiVersion: metal3.io/v1alpha1
+kind: SwitchPortConfiguration
+metadata:
+  name: switchportconfiguration-test
+spec:
+  untaggedVLAN: 11
+" | kubectl apply -f -
 }
 
 # ------------------------------------
@@ -210,7 +301,7 @@ EOF
 
     # Copy the generated configmap for ironic deployment
     cp "$IRONIC_DATA_DIR/ironic_bmo_configmap.env"  "${BMOPATH}/ironic-deployment/keepalived/ironic_bmo_configmap.env"
-    
+
     # Deploy. Args: <deploy-BMO> <deploy-Ironic> <deploy-TLS> <deploy-Basic-Auth> <deploy-Keepalived>
     "${BMOPATH}/tools/deploy.sh" false true "${IRONIC_TLS_SETUP}" "${IRONIC_BASIC_AUTH}" true
 
@@ -218,7 +309,7 @@ EOF
     mv "${BMOPATH}/ironic-deployment/ironic/ironic.yaml.orig" "${BMOPATH}/ironic-deployment/ironic/ironic.yaml"
     mv "${BMOPATH}/ironic-deployment/keepalived/keepalived_patch.yaml.orig" "${BMOPATH}/ironic-deployment/keepalived/keepalived_patch.yaml"
   fi
-  
+
   # Restore original files
   mv "${BMOPATH}/ironic-deployment/keepalived/ironic_bmo_configmap.env.orig" "${BMOPATH}/ironic-deployment/keepalived/ironic_bmo_configmap.env"
   popd
@@ -239,6 +330,9 @@ function make_bm_hosts() {
       -user "$user" \
       -boot-mac "$mac" \
       -boot-mode "legacy" \
+      -switch-port "switchport-$name" \
+      -provisioning-switch-port-configuration "switchportconfiguration-provisioning" \
+      -switch-port-configuration "switchportconfiguration-test" \
       "$name"
   done
 }
@@ -248,6 +342,7 @@ function make_bm_hosts() {
 #
 function apply_bm_hosts() {
   pushd "${BMOPATH}"
+  make install
   list_nodes | make_bm_hosts > "${WORKING_DIR}/bmhosts_crs.yaml"
   if [[ -n "$(list_nodes)" ]]; then
     echo "bmhosts_crs.yaml is applying"
@@ -371,7 +466,7 @@ function patch_clusterctl(){
   rm -rf "${HOME}"/.cluster-api/overrides/infrastructure-metal3/"${CAPM3RELEASE}"
   mkdir -p "${HOME}"/.cluster-api/overrides/infrastructure-metal3/"${CAPM3RELEASE}"
   cp out/*.yaml "${HOME}"/.cluster-api/overrides/infrastructure-metal3/"${CAPM3RELEASE}"
- 
+
   popd
 }
 
@@ -476,6 +571,8 @@ clone_repos
 create_clouds_yaml
 if [ "${EPHEMERAL_CLUSTER}" != "tilt" ]; then
   start_management_cluster
+  launch_network_operator
+  apply_network_resource
   kubectl create namespace metal3
 fi
 

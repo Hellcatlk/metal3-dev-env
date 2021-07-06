@@ -20,6 +20,10 @@ Versions v1alpha4 or v1alpha5 are later referred as **v1alphaX**.
 The v1alphaX deployment can be done with Ubuntu 18.04, 20.04 or Centos 8 Stream target
 host images. By default, for Ubuntu based target hosts we are using Ubuntu 20.04
 
+1. Run `export OVS_USERNAME=<username-of-the-user-who-can-execute-ovs-vsctl>`
+2. Run `export OVS_PASSWORD=<user-password>`
+3. Run `export OVS_HOST=<ssh-openvswitch-host>`
+
 ### Requirements
 
 #### Dev env size

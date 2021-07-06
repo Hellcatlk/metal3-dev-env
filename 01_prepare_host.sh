@@ -14,6 +14,7 @@ fi
 if [[ $OS == ubuntu ]]; then
   sudo apt-get update
   sudo apt -y install python3-pip
+  sudo apt -y install openvswitch-switch
 
   # Set update-alternatives to python3
   if [[ ${DISTRO} == "ubuntu18" ]]; then
@@ -21,10 +22,12 @@ if [[ $OS == ubuntu ]]; then
   elif [[ ${DISTRO} == "ubuntu20" ]]; then
     sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1
   fi
-
 else
   sudo dnf -y install python3-pip
   sudo alternatives --set python /usr/bin/python3
+  sudo dnf -y install openvswitch
+  sudo systemctl enable openvswitch
+  sudo systemctl start openvswitch
 fi
 
 sudo pip3 install ansible=="${ANSIBLE_VERSION}"

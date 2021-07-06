@@ -128,7 +128,11 @@ else
   CAPM3BRANCH="${CAPM3BRANCH:-master}"
 fi
 
-BMOREPO="${BMOREPO:-https://github.com/metal3-io/baremetal-operator.git}"
+export NWOREPO="${NWOREPO:-https://github.com/Hellcatlk/network-operator.git}"
+export NWOBRANCH="${NWOBRANCH:-master}"
+export NWOPATH="${NWOPATH:-${M3PATH}/network-operator}"
+
+BMOREPO="${BMOREPO:-https://github.com/Hellcatlk/baremetal-operator.git}"
 BMOBRANCH="${BMOBRANCH:-master}"
 FORCE_REPO_UPDATE="${FORCE_REPO_UPDATE:-true}"
 
@@ -179,7 +183,7 @@ fi
 export RESTART_CONTAINER_CERTIFICATE_UPDATED=${RESTART_CONTAINER_CERTIFICATE_UPDATED:-${IRONIC_TLS_SETUP}}
 
 # Baremetal operator image
-export BAREMETAL_OPERATOR_IMAGE=${BAREMETAL_OPERATOR_IMAGE:-"quay.io/metal3-io/baremetal-operator"}
+export BAREMETAL_OPERATOR_IMAGE=${BAREMETAL_OPERATOR_IMAGE:-"docker.io/hellcatlk/baremetal-operator:dev"}
 
 # Config for OpenStack CLI
 export OPENSTACK_CONFIG=$HOME/.config/openstack/clouds.yaml
@@ -415,7 +419,7 @@ function init_minikube() {
       # Loop to ignore minikube issues
       while /bin/true; do
         minikube_error=0
-        # Restart libvirtd.service as suggested here 
+        # Restart libvirtd.service as suggested here
         # https://github.com/kubernetes/minikube/issues/3566
         sudo systemctl restart libvirtd.service
         sudo su -l -c "minikube start --insecure-registry ${REGISTRY}"  "${USER}" || minikube_error=1
